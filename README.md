@@ -208,7 +208,7 @@ en un sexo) y los pasan a sus crías.
 | `exigencia_macho` | 0 – 1 | Atractivo mínimo que un macho acepta en una hembra. | Parejas más atractivas vs. menos oportunidades. |
 | `exigencia_hembra` | 0 – 1 | Atractivo mínimo que una hembra acepta en un macho. | Parejas más atractivas vs. menos oportunidades. |
 | `umbral_fertilidad` | 0.2 – 0.6 | Energía mínima para ser fértil, como fracción de `ENERGIA_MAX` (0.4 = 40 de energía). | Reproducirse antes y más seguido vs. empezar con pocas reservas. |
-| `capacidad_grasa` | 0 – 100 | Cuánta grasa puede acumular como reserva de energía. | Aguantar el invierno vs. mantener la grasa que carga y pasos más caros (tener capacidad sin usarla no cuesta). |
+| `capacidad_grasa` | 0 – 100 | Cuánta grasa puede acumular como reserva de energía. | Aguantar el invierno y verse más atractivo vs. mantener la grasa que carga y pasos más caros (tener capacidad sin usarla no cuesta). |
 | `eficiencia_grasa` | 0.2 – 1.0 | Energía que obtiene por cada unidad de grasa que quema. | Aprovechar mejor la reserva vs. costo por tick. |
 | `nivel_usar_grasa` | 0.05 – 0.6 | Si la energía baja de este nivel (fracción de `ENERGIA_MAX`), quema grasa para volver a él. | Sufrir menos la escasez vs. vaciar la reserva antes de tiempo. |
 | `nivel_guardar_grasa` | 0.3 – 1.0 | La energía por encima de este nivel (fracción de `ENERGIA_MAX`) la guarda como grasa. Nunca guarda por debajo de su `nivel_usar_grasa`. | Más reserva para el invierno vs. menos energía disponible para ser fértil y atractivo. |
@@ -234,8 +234,10 @@ alcanza al cabo de otro período igual.
 
 ### Fertilidad y cortejo
 - **Fértil:** no está gestando, tiene al menos `edad_madurez` ticks y energía ≥ `umbral_fertilidad · ENERGIA_MAX`.
-- **Atractivo percibido** por los demás: `atractivo · energía / ENERGIA_MAX`
-  (mal alimentado se ve menos atractivo).
+- **Atractivo percibido** por los demás:
+  `atractivo · mín(1, (energía + grasa · eficiencia_grasa) / ENERGIA_MAX)`
+  (mal alimentado se ve menos atractivo; sus reservas de grasa cuentan a favor,
+  según lo que rendirían al quemarlas).
 - **Le atrae** otro individuo si su atractivo percibido es ≥ su propia exigencia.
   Hay **interés mutuo** si a cada uno le atrae el otro.
 
@@ -257,7 +259,7 @@ alcanza al cabo de otro período igual.
      - si su propia celda es la mejor, se queda si tiene algo de pasto o se
        mueve al azar si está vacía.
 3. **Come** hasta `FACTOR_COMER · gasto_metabolico` de pasto y gana `pasto_comido · eficiencia_comer`.
-4. **Gasta:** `gasto_metabolico + COSTO_VISION · vision + COSTO_VELOCIDAD · velocidad + COSTO_PASO · pasos · (1 + grasa / GRASA_QUE_DUPLICA_PASO) + COSTO_ATRACTIVO · atractivo + COSTO_MANTENER_GRASA · grasa + COSTO_EFICIENCIA_GRASA · eficiencia_grasa` (el atractivo solo lo pagan los adultos; la grasa que carga se paga por mantenerla y además encarece cada paso).
+4. **Gasta:** `gasto_metabolico + COSTO_VISION · vision + COSTO_VELOCIDAD · velocidad + COSTO_PASO · pasos · (1 + grasa / GRASA_QUE_DUPLICA_PASO) + COSTO_ATRACTIVO · atractivo + COSTO_MANTENER_GRASA · grasa + COSTO_EFICIENCIA_GRASA · eficiencia_grasa` (el atractivo solo lo pagan los adultos; la grasa que carga se paga por mantenerla y además encarece cada paso; tener capacidad sin usarla no cuesta).
 5. **Usa grasa si le hace falta:** si la energía quedó por debajo de
    `nivel_usar_grasa · ENERGIA_MAX`, quema grasa para volver a ese nivel;
    cada unidad de grasa rinde `eficiencia_grasa` de energía. Esto pasa antes de
@@ -303,7 +305,7 @@ probabilidad `prob_mut` (de la madre), se le suma ruido gaussiano de desvío
 | `COSTO_PASO` | `Intento_de_ser_vivo.py` | Energía por cada paso. |
 | `COSTO_ATRACTIVO` | `Intento_de_ser_vivo.py` | Energía por tick por unidad de atractivo que muestra un adulto (0 = sin costo). |
 | `PROB_CAMBIO_DIRECCION` | `Intento_de_ser_vivo.py` | Probabilidad por tick de cambiar de rumbo al explorar. |
-| `COSTO_MANTENER_GRASA` | `Intento_de_ser_vivo.py` | Energía por tick por cada unidad de grasa que carga (mantener el tejido graso). Con la reserva vacía no se paga. |
+| `COSTO_MANTENER_GRASA` | `Intento_de_ser_vivo.py` | Energía por tick por cada unidad de grasa que carga (mantener el tejido graso). |
 | `COSTO_EFICIENCIA_GRASA` | `Intento_de_ser_vivo.py` | Energía por tick por unidad de `eficiencia_grasa`. |
 | `GRASA_QUE_DUPLICA_PASO` | `Intento_de_ser_vivo.py` | Cargar esta cantidad de grasa duplica el costo de cada paso. |
 | `RANGO_*` | `Intento_de_herbivoro.py` | Rangos de los genes del herbívoro. |
@@ -319,16 +321,29 @@ probabilidad `prob_mut` (de la madre), se le suma ruido gaussiano de desvío
 
 ## Estado actual y comportamiento conocido
 
-Observaciones de corridas de prueba (3 semillas, 2000–4000 ticks):
+Observaciones de corridas de prueba (1000 herbívoros iniciales salvo que se
+indique otra cosa, 5000–10.000 ticks, 10–20 semillas):
 
 - **Con 100 herbívoros iniciales la población tiende a extinguirse.** En un mapa
   de 90.000 celdas la pareja más cercana suele estar a unas 30 celdas y la visión
   alcanza 2–4, así que casi no se encuentran; y cuando se encuentran, el interés
   mutuo es poco frecuente mientras las exigencias no evolucionan hacia abajo
   (*efecto Allee*).
-- **Con 1000 herbívoros iniciales la población sobrevive**: el primer invierno la
-  reduce a ~250, y después los apareamientos aumentan año a año y la exigencia
-  promedio baja.
+- **Con 1000 herbívoros iniciales** el primer invierno reduce la población a
+  ~150–250 y durante varios años queda estancada con pocos individuos. Sale de
+  ese estancamiento cuando la exigencia al elegir pareja evoluciona hacia valores
+  bajos, lo que puede tardar entre 5 y 20 años según la corrida.
+- **Sin grasa**, las 10 corridas probadas se recuperan antes del año 11 (mediana
+  de 634 herbívoros en ese año).
+- **Con grasa** (versión actual), 14 de 20 corridas se recuperan antes del año 11
+  (mediana 288). Sin depredadores ni inviernos más duros, las reservas de grasa
+  no dan una ventaja neta: cuestan más de lo que aportan.
+- **Que la grasa sume atractivo ayudó**: cuando el atractivo solo tenía en cuenta
+  la energía, guardar grasa hacía parecer al animal peor alimentado y solo 4 de
+  10 corridas se recuperaban.
+- **Se probó cobrar un precio por la capacidad de grasa** (aunque la reserva esté
+  vacía) y se descartó: retrasaba la recuperación (8 de 20 corridas con 0.0001
+  por unidad), aunque con 25 años de simulación 9 de 10 terminaron recuperándose.
 - **El invierno es el principal cuello de botella**: el pasto casi desaparece y
   mueren sobre todo los individuos con pocas reservas.
 - Sin depredadores, algunos genes derivan hacia valores extremos (por ejemplo, el

@@ -16,7 +16,7 @@ DIRECCIONES = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 # --- Grasa ---
 # (Desde qué energía se guarda y se usa la grasa lo deciden los genes nivel_guardar_grasa y nivel_usar_grasa)
 COSTO_MANTENER_GRASA = 0.0005    # energía por tick por cada unidad de grasa que carga (mantener el tejido graso);
-                                 # con la reserva vacía no se paga, aunque tenga mucha capacidad
+                                 # tener capacidad sin usarla no cuesta
 COSTO_EFICIENCIA_GRASA = 0.02    # energía por tick por cada unidad del gen eficiencia_grasa
 GRASA_QUE_DUPLICA_PASO = 100.0   # la grasa pesa: cargar esta cantidad de grasa duplica el costo de cada paso
 
@@ -188,7 +188,7 @@ class SerVivo:
         self.accion_especifica(entorno)
 
         # Gasto del tick: metabolismo basal + visión + velocidad + pasos (más caros si carga grasa)
-        # + atractivo que muestra + mantener la grasa que carga + su eficiencia para usarla
+        # + atractivo que muestra + la grasa que carga + su eficiencia para usarla
         self.energia -= (self.gasto_metabolico
                          + COSTO_VISION * self.vision
                          + COSTO_VELOCIDAD * self.velocidad
@@ -255,9 +255,12 @@ class SerVivo:
         return self.atractivo() if self.edad >= self.edad_madurez else 0.0
 
     def atractivo_percibido(self):
-        # Lo que ven los demás: su gen de atractivo, reducido si está mal alimentado.
+        # Lo que ven los demás: su gen de atractivo, según su estado corporal. Cuenta la energía
+        # y también la grasa (por lo que rendiría al quemarla), así que guardar reservas no lo
+        # hace parecer peor alimentado. Nunca supera el valor de su gen.
         # Así el atractivo es una señal honesta de su estado.
-        return self.atractivo() * self.energia / ENERGIA_MAX
+        estado = min(1.0, (self.energia + self.grasa * self.eficiencia_grasa) / ENERGIA_MAX)
+        return self.atractivo() * estado
 
     def le_atrae(self, otro):
         # Decide según lo que percibe: el otro le atrae si supera su exigencia
