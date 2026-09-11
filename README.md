@@ -117,7 +117,7 @@ Imprime la población cada 20 ticks y un resumen al final. Los parámetros está
 al inicio del archivo:
 
 ```python
-n = 100     # cantidad de herbívoros al inicio
+n = 1000    # cantidad de herbívoros al inicio
 t = 1500    # cantidad de ticks a simular (400 ticks = 1 año)
 ```
 
@@ -169,10 +169,11 @@ if poblacion:
 
 ### Consejos
 
-- **Empezá con una población grande (por ejemplo 1000).** Como la reproducción
-  es sexual y los individuos eligen pareja, con pocos animales en un mapa tan
-  grande casi no se encuentran y la población tiende a extinguirse (ver
-  [Estado actual](#estado-actual-y-comportamiento-conocido)).
+- **Usá una población inicial grande.** La consola ya empieza con 1000
+  herbívoros; el visualizador empieza con 50, así que conviene subirlo. Como la
+  reproducción es sexual y los individuos eligen pareja, con pocos animales en
+  un mapa tan grande casi no se encuentran y la población tiende a extinguirse
+  (ver [Estado actual](#estado-actual-y-comportamiento-conocido)).
 - **Cuanto más grande la población, más lenta la simulación.** Para corridas
   largas usá la consola en vez de la animación.
 - Para probar un cambio, fijá `SEMILLA` y compará varias corridas: una sola

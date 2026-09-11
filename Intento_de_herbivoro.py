@@ -19,7 +19,7 @@ RANGO_EXIGENCIA = (0.0, 1.0)              # atractivo mínimo que acepta en una 
 FACTOR_COMER = 1.0                    # pasto que puede comer por tick = FACTOR_COMER * gasto_metabolico
 PESO_COMUNITARIO = 0.1                # cuánto pesa cada vecino frente al pasto al elegir hacia dónde ir
 PASTO_MINIMO_VISIBLE = 0.01           # por debajo de esto considera que en esa celda "no hay pasto"
-n = 100
+n = 1000   # con pocos individuos casi no encuentran pareja y la población tiende a extinguirse
 t = 1500
 
 class Herbivoro(SerVivo):
