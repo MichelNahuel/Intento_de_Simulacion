@@ -1,10 +1,11 @@
 import numpy as np
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
-from Intento_de_ambiente import PASTO_MAX, Entorno
-from Intento_de_herbivoro import CANTIDAD_COMER, crear_poblacion_inicial
+from Intento_de_ambiente import PASTO_MAX, SEMILLA, Entorno, fijar_semilla
+from Intento_de_herbivoro import crear_poblacion_inicial, simular_tick
 
 #Steup inicial
+fijar_semilla(SEMILLA)
 entorno = Entorno(seed=1)
 poblacion = crear_poblacion_inicial(50, entorno.shape)
 
@@ -35,14 +36,8 @@ def estacion_actual(tick):
 def actualizar(frame):
     global poblacion
 
-    entorno.step()
-    for herbivoro in poblacion:
-        if herbivoro.esta_vivo():
-            herbivoro.step(entorno)
-            if herbivoro.puede_reproducirse():
-                hijo = herbivoro.reproducion_asexual()
-                poblacion.append(hijo)
-    poblacion = [c for c in poblacion if c.esta_vivo()]
+    # mismas reglas que la corrida por consola (ver simular_tick en Intento_de_herbivoro.py)
+    poblacion = simular_tick(entorno, poblacion)
 
     #registrar en el historial
     historial_poblacion.append(len(poblacion))
