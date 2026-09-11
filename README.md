@@ -36,13 +36,16 @@ Cada herbívoro tiene energía, edad, sexo y un conjunto de **genes**. En cada t
      pasto**: se queda donde hay suficiente o camina hacia la celda más
      atractiva que ve, teniendo en cuenta si le gusta estar cerca de otros.
 2. **Come** el pasto de su celda y gana energía.
-3. **Gasta energía**: metabolismo, mantener la visión y la velocidad, cada paso
-   que da y (si es adulto) mostrar su atractivo.
-4. **Se reproduce**: si llegó al lado de la pareja que eligió y los dos siguen
+3. **Gasta energía**: metabolismo, mantener la visión, la velocidad y sus
+   reservas de grasa, cada paso que da (más caro si carga mucha grasa) y, si es
+   adulto, mostrar su atractivo.
+4. **Administra sus reservas**: si le sobra energía la guarda como grasa (hasta
+   su capacidad); si le falta, quema grasa para recuperarla.
+5. **Se reproduce**: si llegó al lado de la pareja que eligió y los dos siguen
    interesados, se aparean. La hembra gesta y le va pasando energía a la cría
    hasta dar a luz; el macho espera un tiempo antes de poder volver a aparearse.
-5. **Envejece**: después de cierta edad ve y se mueve cada vez menos.
-6. **Muere** si se queda sin energía.
+6. **Envejece**: después de cierta edad ve y se mueve cada vez menos.
+7. **Muere** si se queda sin energía (y sin grasa para quemar).
 
 ### La evolución
 - Cada gen de una cría viene **de la madre o del padre** (50 % cada uno) y puede
@@ -204,6 +207,11 @@ en un sexo) y los pasan a sus crías.
 | `atractivo_hembra` | 0 – 1 | Cuán atractiva es una hembra (solo se expresa en hembras). | Consigue pareja; mostrarlo cuesta energía. |
 | `exigencia_macho` | 0 – 1 | Atractivo mínimo que un macho acepta en una hembra. | Parejas más atractivas vs. menos oportunidades. |
 | `exigencia_hembra` | 0 – 1 | Atractivo mínimo que una hembra acepta en un macho. | Parejas más atractivas vs. menos oportunidades. |
+| `umbral_fertilidad` | 0.2 – 0.6 | Energía mínima para ser fértil, como fracción de `ENERGIA_MAX` (0.4 = 40 de energía). | Reproducirse antes y más seguido vs. empezar con pocas reservas. |
+| `capacidad_grasa` | 0 – 100 | Cuánta grasa puede acumular como reserva de energía. | Aguantar el invierno vs. mantener la grasa que carga y pasos más caros (tener capacidad sin usarla no cuesta). |
+| `eficiencia_grasa` | 0.2 – 1.0 | Energía que obtiene por cada unidad de grasa que quema. | Aprovechar mejor la reserva vs. costo por tick. |
+| `nivel_usar_grasa` | 0.05 – 0.6 | Si la energía baja de este nivel (fracción de `ENERGIA_MAX`), quema grasa para volver a él. | Sufrir menos la escasez vs. vaciar la reserva antes de tiempo. |
+| `nivel_guardar_grasa` | 0.3 – 1.0 | La energía por encima de este nivel (fracción de `ENERGIA_MAX`) la guarda como grasa. Nunca guarda por debajo de su `nivel_usar_grasa`. | Más reserva para el invierno vs. menos energía disponible para ser fértil y atractivo. |
 
 ---
 
@@ -225,7 +233,7 @@ y la velocidad bajan linealmente hasta `FACTOR_VEJEZ_MINIMO` (20 %), que se
 alcanza al cabo de otro período igual.
 
 ### Fertilidad y cortejo
-- **Fértil:** no está gestando, tiene al menos `edad_madurez` ticks y energía ≥ 40 % de `ENERGIA_MAX`.
+- **Fértil:** no está gestando, tiene al menos `edad_madurez` ticks y energía ≥ `umbral_fertilidad · ENERGIA_MAX`.
 - **Atractivo percibido** por los demás: `atractivo · energía / ENERGIA_MAX`
   (mal alimentado se ve menos atractivo).
 - **Le atrae** otro individuo si su atractivo percibido es ≥ su propia exigencia.
@@ -249,17 +257,25 @@ alcanza al cabo de otro período igual.
      - si su propia celda es la mejor, se queda si tiene algo de pasto o se
        mueve al azar si está vacía.
 3. **Come** hasta `FACTOR_COMER · gasto_metabolico` de pasto y gana `pasto_comido · eficiencia_comer`.
-4. **Gasta:** `gasto_metabolico + COSTO_VISION · vision + COSTO_VELOCIDAD · velocidad + COSTO_PASO · pasos + COSTO_ATRACTIVO · atractivo` (el último término, solo adultos).
-5. **Reproducción:**
+4. **Gasta:** `gasto_metabolico + COSTO_VISION · vision + COSTO_VELOCIDAD · velocidad + COSTO_PASO · pasos · (1 + grasa / GRASA_QUE_DUPLICA_PASO) + COSTO_ATRACTIVO · atractivo + COSTO_MANTENER_GRASA · grasa + COSTO_EFICIENCIA_GRASA · eficiencia_grasa` (el atractivo solo lo pagan los adultos; la grasa que carga se paga por mantenerla y además encarece cada paso).
+5. **Usa grasa si le hace falta:** si la energía quedó por debajo de
+   `nivel_usar_grasa · ENERGIA_MAX`, quema grasa para volver a ese nivel;
+   cada unidad de grasa rinde `eficiencia_grasa` de energía. Esto pasa antes de
+   ver si la hembra pierde la cría o si el animal muere.
+6. **Reproducción:**
    - Si quedó a distancia ≤ 1 (contando diagonales) de la pareja elegida, y los
      dos siguen fértiles y con interés mutuo, se aparean.
    - **Gestación hembra:** durante `tiempo_gestacion_hembra` ticks le pasa
      `APORTE_GESTACION` de energía por tick a la cría. Si su energía baja de
      `ENERGIA_MIN_GESTACION`, pierde la cría. Al terminar, la cría nace en su
-     celda con la energía acumulada y sexo al azar.
+     celda con la energía acumulada, sin grasa y con sexo al azar.
    - **Gestación macho:** no puede volver a aparearse hasta que pasen
      `tiempo_gestacion_macho` ticks.
-6. La energía se limita a `ENERGIA_MAX`; con energía ≤ 0 muere.
+7. **Guarda grasa:** la energía que supere `nivel_guardar_grasa · ENERGIA_MAX`
+   se pasa a grasa (1 de energía = 1 de grasa) hasta llenar `capacidad_grasa`.
+   Nunca guarda por debajo de su `nivel_usar_grasa` (si no, guardaría y
+   quemaría grasa en cada tick). Si ya no le entra más grasa, la energía se
+   limita a `ENERGIA_MAX` y el resto se pierde. Con energía ≤ 0 muere.
 
 La población inicial recibe genes al azar y edades al azar por debajo de su
 `edad_madurez`, para que no todos lleguen a reproducirse en el mismo tick.
@@ -287,6 +303,9 @@ probabilidad `prob_mut` (de la madre), se le suma ruido gaussiano de desvío
 | `COSTO_PASO` | `Intento_de_ser_vivo.py` | Energía por cada paso. |
 | `COSTO_ATRACTIVO` | `Intento_de_ser_vivo.py` | Energía por tick por unidad de atractivo que muestra un adulto (0 = sin costo). |
 | `PROB_CAMBIO_DIRECCION` | `Intento_de_ser_vivo.py` | Probabilidad por tick de cambiar de rumbo al explorar. |
+| `COSTO_MANTENER_GRASA` | `Intento_de_ser_vivo.py` | Energía por tick por cada unidad de grasa que carga (mantener el tejido graso). Con la reserva vacía no se paga. |
+| `COSTO_EFICIENCIA_GRASA` | `Intento_de_ser_vivo.py` | Energía por tick por unidad de `eficiencia_grasa`. |
+| `GRASA_QUE_DUPLICA_PASO` | `Intento_de_ser_vivo.py` | Cargar esta cantidad de grasa duplica el costo de cada paso. |
 | `RANGO_*` | `Intento_de_herbivoro.py` | Rangos de los genes del herbívoro. |
 | `FACTOR_COMER` | `Intento_de_herbivoro.py` | Pasto que puede comer por tick = `FACTOR_COMER · gasto_metabolico`. |
 | `PESO_COMUNITARIO` | `Intento_de_herbivoro.py` | Peso de cada vecino frente al pasto al elegir destino. |

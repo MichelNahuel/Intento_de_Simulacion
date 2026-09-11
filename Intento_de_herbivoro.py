@@ -15,6 +15,11 @@ RANGO_GESTACION_HEMBRA = (10.0, 40.0)     # ticks que dura la gestación de una 
 RANGO_GESTACION_MACHO = (5.0, 50.0)       # ticks que un macho espera, tras aparearse, para volver a aparearse
 RANGO_ATRACTIVO = (0.0, 1.0)              # cuán atractivo es para el otro sexo (mostrarlo cuesta COSTO_ATRACTIVO)
 RANGO_EXIGENCIA = (0.0, 1.0)              # atractivo mínimo que acepta en una pareja
+RANGO_UMBRAL_FERTILIDAD = (0.2, 0.6)      # energía mínima para ser fértil, como fracción de ENERGIA_MAX (0.4 = 40)
+RANGO_CAPACIDAD_GRASA = (0.0, 100.0)      # cuánta grasa puede acumular (mantener esa capacidad cuesta energía)
+RANGO_EFICIENCIA_GRASA = (0.2, 1.0)       # energía que obtiene por cada unidad de grasa que quema
+RANGO_NIVEL_USAR_GRASA = (0.05, 0.6)      # si la energía baja de este nivel (fracción de ENERGIA_MAX), quema grasa
+RANGO_NIVEL_GUARDAR_GRASA = (0.3, 1.0)    # la energía por encima de este nivel (fracción de ENERGIA_MAX) la guarda como grasa
 
 FACTOR_COMER = 1.0                    # pasto que puede comer por tick = FACTOR_COMER * gasto_metabolico
 PESO_COMUNITARIO = 0.1                # cuánto pesa cada vecino frente al pasto al elegir hacia dónde ir
@@ -41,6 +46,14 @@ class Herbivoro(SerVivo):
         "atractivo_hembra": RANGO_ATRACTIVO,
         "exigencia_macho": RANGO_EXIGENCIA,
         "exigencia_hembra": RANGO_EXIGENCIA,
+        # Energía mínima (fracción de ENERGIA_MAX) para ser fértil
+        "umbral_fertilidad": RANGO_UMBRAL_FERTILIDAD,
+        # Reservas de grasa: cuánta puede acumular y cuánta energía saca al quemarla
+        "capacidad_grasa": RANGO_CAPACIDAD_GRASA,
+        "eficiencia_grasa": RANGO_EFICIENCIA_GRASA,
+        # Cuándo usar la grasa y desde qué energía empezar a acumularla
+        "nivel_usar_grasa": RANGO_NIVEL_USAR_GRASA,
+        "nivel_guardar_grasa": RANGO_NIVEL_GUARDAR_GRASA,
     }
 
     # --- Parámetros de la especie (los usa SerVivo) ---

@@ -8,10 +8,17 @@ FUERZA_MUTACION = 0.1        # desviación estándar de la mutación, como fracc
 RANGO_PROB_MUT = (0.01, 0.08)
 COSTO_VISION = 0.01          # energía por tick por cada unidad del gen visión (mantener ojos y cerebro)
 COSTO_VELOCIDAD = 0.01       # energía por tick por cada unidad del gen velocidad (mantener músculos), se mueva o no
-COSTO_PASO = 0.02            # energía por cada paso que da
+COSTO_PASO = 0.02            # energía por cada paso que da (sin grasa encima)
 COSTO_ATRACTIVO = 0.05       # energía por tick por cada unidad de atractivo que muestra un adulto (mantener el "ornamento")
 PROB_CAMBIO_DIRECCION = 0.1  # probabilidad por tick de cambiar de rumbo mientras explora buscando pareja
 DIRECCIONES = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+# --- Grasa ---
+# (Desde qué energía se guarda y se usa la grasa lo deciden los genes nivel_guardar_grasa y nivel_usar_grasa)
+COSTO_MANTENER_GRASA = 0.0005    # energía por tick por cada unidad de grasa que carga (mantener el tejido graso);
+                                 # con la reserva vacía no se paga, aunque tenga mucha capacidad
+COSTO_EFICIENCIA_GRASA = 0.02    # energía por tick por cada unidad del gen eficiencia_grasa
+GRASA_QUE_DUPLICA_PASO = 100.0   # la grasa pesa: cargar esta cantidad de grasa duplica el costo de cada paso
 
 
 class SerVivo:
@@ -34,6 +41,7 @@ class SerVivo:
         self.columna = columna
         self.sexo = sexo if sexo is not None else random.choice(["M", "H"])
         self.energia = energia if energia is not None else ENERGIA_MAX / 2
+        self.grasa = 0.0               # reserva de energía; se nace sin grasa
         self.edad = edad
         self.direccion = None          # rumbo que sigue mientras explora buscando pareja
 
@@ -179,12 +187,18 @@ class SerVivo:
 
         self.accion_especifica(entorno)
 
-        # Gasto del tick: metabolismo basal + visión + velocidad + pasos dados + atractivo que muestra
+        # Gasto del tick: metabolismo basal + visión + velocidad + pasos (más caros si carga grasa)
+        # + atractivo que muestra + mantener la grasa que carga + su eficiencia para usarla
         self.energia -= (self.gasto_metabolico
                          + COSTO_VISION * self.vision
                          + COSTO_VELOCIDAD * self.velocidad
-                         + COSTO_PASO * pasos
-                         + COSTO_ATRACTIVO * self.atractivo_expresado())
+                         + COSTO_PASO * pasos * (1 + self.grasa / GRASA_QUE_DUPLICA_PASO)
+                         + COSTO_ATRACTIVO * self.atractivo_expresado()
+                         + COSTO_MANTENER_GRASA * self.grasa
+                         + COSTO_EFICIENCIA_GRASA * self.eficiencia_grasa)
+
+        # Si quedó con poca energía, usa sus reservas de grasa (antes de ver si pierde la cría o muere)
+        self.usar_grasa_si_hace_falta()
 
         hijo = None
         if self.gestando:
@@ -195,8 +209,37 @@ class SerVivo:
             # Llegó al lado de la pareja elegida y los dos siguen dispuestos: se aparean
             self.aparearse_con(pareja)
 
+        # Lo que le sobre de energía lo guarda como grasa; si ya no le entra más, se pierde lo que pase del máximo
+        self.guardar_excedente_en_grasa()
         self.energia = min(self.energia, ENERGIA_MAX)
         return hijo
+
+    # --- Grasa ---
+    def guardar_excedente_en_grasa(self):
+        """Pasa a grasa la energía que supere su nivel de guardado (gen nivel_guardar_grasa), hasta
+        llenar su capacidad. Guardar no tiene pérdida: 1 de energía se vuelve 1 de grasa.
+        Nunca guarda por debajo de su nivel de uso: si lo hiciera, guardaría y quemaría grasa
+        en cada tick, perdiendo energía en cada conversión. Devuelve cuánto guardó."""
+        nivel = max(self.nivel_guardar_grasa, self.nivel_usar_grasa) * ENERGIA_MAX
+        excedente = self.energia - nivel
+        lugar_libre = self.capacidad_grasa - self.grasa
+        guardado = min(excedente, lugar_libre)
+        if guardado <= 0:
+            return 0.0
+        self.grasa += guardado
+        self.energia -= guardado
+        return guardado
+
+    def usar_grasa_si_hace_falta(self):
+        """Si la energía bajó de su nivel de uso (gen nivel_usar_grasa), quema grasa para volver a ese nivel.
+        Cada unidad de grasa rinde eficiencia_grasa de energía. Devuelve cuánta grasa quemó."""
+        falta = self.nivel_usar_grasa * ENERGIA_MAX - self.energia
+        if falta <= 0 or self.grasa <= 0 or self.eficiencia_grasa <= 0:
+            return 0.0
+        quemada = min(self.grasa, falta / self.eficiencia_grasa)
+        self.grasa -= quemada
+        self.energia += quemada * self.eficiencia_grasa
+        return quemada
 
     # --- Cortejo ---
     # Cada individuo lleva los genes de los dos sexos, pero solo expresa los del suyo
@@ -225,10 +268,12 @@ class SerVivo:
 
     # --- Reproducción sexual ---
     def puede_reproducirse(self):
-        # Vale igual para machos y hembras
+        # Vale igual para machos y hembras. La energía mínima depende del gen umbral_fertilidad:
+        # un umbral bajo permite reproducirse antes y más seguido, pero empezando con pocas
+        # reservas (más riesgo de perder la cría o de no aguantar el invierno)
         return (not self.gestando
                 and self.edad >= self.edad_madurez
-                and self.energia >= 0.4 * ENERGIA_MAX)
+                and self.energia >= self.umbral_fertilidad * ENERGIA_MAX)
 
     def elegir_pareja(self, entorno):
         """Mira, dentro de su radio de visión, a los individuos fértiles del otro sexo con los que
@@ -300,7 +345,7 @@ class SerVivo:
         self.genes_padre = None
 
     def crear_hijo(self, energia):
-        """La cría nace en la celda de la madre, con la energía que ella le fue pasando.
+        """La cría nace en la celda de la madre, con la energía que ella le fue pasando (y sin grasa).
         Cada gen se hereda de la madre o del padre (50% cada uno) y después puede mutar
         (con la probabilidad de mutación de la madre)."""
         genes_hijo = {}
